@@ -8,71 +8,99 @@ import tempfile
 import shlex
 import shutil
 from typing import List, Tuple
+from rich.console import Console
+from rich.panel import Panel
+from rich.markdown import Markdown
 
+console = Console()
 
 def run_interactive_command(cmd: List[str]) -> Tuple[bytes, int]:
     """
     Runs an interactive command with a pseudo-tty, capturing combined output.
+    Works with both GNU and BSD variants of the script command.
 
-    Assumptions and constraints:
-    - We are on a Linux system with script available
+Assumptions and constraints:
+    - We are on a Unix-like system (Linux/macOS) with script command available
     - `cmd` is a non-empty list where cmd[0] is the executable
     - The executable and script are assumed to be on PATH
     - If anything is amiss (e.g., command not found), we fail early and cleanly
-
-    The output is cleaned to remove ANSI escape sequences and control characters.
+  
+    Args:
+        cmd: List of command parts where cmd[0] is the executable
 
     Returns:
         Tuple of (cleaned_output, return_code)
     """
-    # Fail early if cmd is empty
     if not cmd:
         raise ValueError("No command provided.")
     
-    # Check that the command exists
     if shutil.which(cmd[0]) is None:
         raise FileNotFoundError(f"Command '{cmd[0]}' not found in PATH.")
 
-    # Create temp files (we'll always clean them up)
-    output_file = tempfile.NamedTemporaryFile(prefix="output_", delete=False)
-    retcode_file = tempfile.NamedTemporaryFile(prefix="retcode_", delete=False)
-    output_path = output_file.name
-    retcode_path = retcode_file.name
-    output_file.close()
-    retcode_file.close()
+    # Display command info
+    console.print(Panel(
+        Markdown(f"Running command: `{' '.join(cmd)}`"),
+        title="🔄 Interactive Command",
+        border_style="bright_yellow"
+    ))
 
-    # Quote arguments for safety
-    quoted_cmd = ' '.join(shlex.quote(c) for c in cmd)
-    # Use script to capture output with TTY and save return code
-    shell_cmd = f"{quoted_cmd}; echo $? > {shlex.quote(retcode_path)}"
+    # Create temp files
+    with tempfile.NamedTemporaryFile(prefix="script_", delete=False) as script_file:
+        script_path = script_file.name
+        # Write the command to a temporary shell script
+        script_content = f"""#!/bin/bash
+{' '.join(shlex.quote(c) for c in cmd)}
+exit_code=$?
+echo $exit_code > "{script_path}.retcode"
+exit $exit_code
+"""
+        script_file.write(script_content.encode())
+        os.chmod(script_path, 0o755)
 
-    def cleanup():
-        for path in [output_path, retcode_path]:
-            if os.path.exists(path):
-                os.remove(path)
+    output_path = f"{script_path}.out"
+    retcode_path = f"{script_path}.retcode"
 
     try:
-        # Run command with script for TTY and output capture
-        os.system(f"script -q -c {shlex.quote(shell_cmd)} {shlex.quote(output_path)}")
-
-        # Read and clean the output
+        # Use BSD script syntax (macOS)
+        os.system(f"script -q {shlex.quote(output_path)} {shlex.quote(script_path)}")
+        
+        # Read output
         with open(output_path, "rb") as f:
             output = f.read()
         
         # Clean ANSI escape sequences and control characters
-        output = re.sub(rb'\x1b\[[0-9;]*[a-zA-Z]', b'', output)  # ANSI escape sequences
-        output = re.sub(rb'[\x00-\x08\x0b\x0c\x0e-\x1f]', b'', output)  # Control chars
+        output = re.sub(rb'\x1b\[[0-9;]*[a-zA-Z]', b'', output)
+        output = re.sub(rb'[\x00-\x08\x0b\x0c\x0e-\x1f]', b'', output)
         
-        # Get the return code
-        with open(retcode_path, "r") as f:
-            return_code = int(f.read().strip())
+        # Get return code
+        try:
+            with open(retcode_path, "r") as f:
+                return_code = int(f.read().strip())
+        except (IOError, ValueError):
+            return_code = 1
+
+        # Display completion status
+        status = "✅ Success" if return_code == 0 else "❌ Failed"
+        console.print(Panel(
+            f"Command completed with return code: {return_code}\n{status}",
+            title="Command Result",
+            border_style="green" if return_code == 0 else "red"
+        ))
 
     except Exception as e:
-        # If something goes wrong, cleanup and re-raise
-        cleanup()
-        raise RuntimeError("Error running interactive capture") from e
+        console.print(Panel(
+            f"Error running interactive capture: {str(e)}",
+            title="❌ Error",
+            border_style="red"
+        ))
+        raise
     finally:
-        # Ensure files are removed no matter what
-        cleanup()
+        # Cleanup
+        for path in [script_path, output_path, retcode_path]:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except:
+                pass
 
     return output, return_code

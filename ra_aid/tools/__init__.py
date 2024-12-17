@@ -10,6 +10,9 @@ from .memory import (
     request_implementation, skip_implementation, delete_key_facts, emit_research_subtask,
     emit_key_snippets, delete_key_snippets, emit_related_files
 )
+from .test import run_test_command
+from .lint import run_lint_command
+from .documentation import search_online
 
 __all__ = [
     'ask_expert',
@@ -31,5 +34,8 @@ __all__ = [
     'run_shell_command',
     'skip_implementation',
     'emit_research_subtask',
-    'ripgrep_search'
+    'ripgrep_search',
+    'run_test_command',
+    'run_lint_command',
+    'search_online',
 ]

@@ -15,7 +15,7 @@ from ra_aid.tools import (
     emit_research_notes, emit_plan, emit_related_files, emit_task,
     emit_expert_context, get_memory_value, emit_key_facts, delete_key_facts,
     emit_key_snippets, delete_key_snippets,
-    emit_research_subtask, request_implementation, read_file_tool, fuzzy_find_project_files, ripgrep_search, list_directory_tree
+    emit_research_subtask, request_implementation, read_file_tool, fuzzy_find_project_files, ripgrep_search, list_directory_tree, run_test_command, run_lint_command, search_online
 )
 from ra_aid.tools.memory import _global_memory, get_related_files
 from ra_aid import print_agent_output, print_stage_header, print_task_header, print_error
@@ -155,7 +155,8 @@ def get_planning_tools(expert_enabled: bool = True) -> list:
         delete_key_snippets,
         read_file_tool,
         fuzzy_find_project_files,
-        ripgrep_search
+        ripgrep_search,
+        search_online
     ]
     if expert_enabled:
         tools.append(ask_expert)
@@ -167,6 +168,8 @@ def get_implementation_tools(expert_enabled: bool = True) -> list:
         list_directory_tree,
         run_shell_command,
         run_programming_task,
+        run_test_command,
+        run_lint_command,
         emit_related_files,
         emit_key_facts,
         delete_key_facts,

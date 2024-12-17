@@ -51,7 +51,10 @@ def ripgrep_search(
             - success: Boolean indicating if search succeeded
     """
     # Build rg command with options
-    cmd = ['rg', '--color', 'always']
+    cmd = ['rg']
+    
+    # Add options
+    cmd.extend(['--color', 'always'])
     
     if not case_sensitive:
         cmd.append('-i')
@@ -65,13 +68,18 @@ def ripgrep_search(
     if file_type:
         cmd.extend(['-t', file_type])
 
-    # Add exclusions
-    exclusions = DEFAULT_EXCLUDE_DIRS + (exclude_dirs or [])
+    # Add exclusions - remove duplicates
+    exclusions = list(set(DEFAULT_EXCLUDE_DIRS + (exclude_dirs or [])))
+    
+    # Add glob patterns - use ripgrep's native glob syntax without shell quoting
     for dir in exclusions:
         cmd.extend(['--glob', f'!{dir}'])
 
-    # Add the search pattern
-    cmd.append(pattern)
+    # If pattern looks like a simple string (no regex chars), use fixed string mode
+    if not any(c in pattern for c in r'[](){}.*+?^$|\\'):
+        cmd.extend(['-F', pattern])  # Use fixed string mode
+    else:
+        cmd.extend(['--', pattern])  # Use regex mode with argument separator
 
     # Build info sections for display
     info_sections = []
@@ -93,12 +101,60 @@ def ripgrep_search(
             params.append(f"- `{dir}`")
     info_sections.append("\n".join(params))
 
-    # Execute command
+    # Display search info
+    console.print(Panel(
+        Markdown("\n".join(info_sections)),
+        title="🔍 Ripgrep Search",
+        border_style="blue"
+    ))
+
     try:
         print()
+        # Get count of searchable files first - without the search pattern
+        cmd_files = cmd[:-1]  # Remove the search pattern
+        cmd_files.extend(['--files'])
+        files_output, _ = run_interactive_command(cmd_files)
+        searchable_files = files_output.decode().strip().split('\n') if files_output else []
+        total_files = len([f for f in searchable_files if f])  # Count non-empty lines
+
+        # Now do the actual search with the pattern
         output, return_code = run_interactive_command(cmd)
         print()
+        
         decoded_output = output.decode() if output else ""
+        
+        # Prepare result message
+        if return_code == 0:
+            # Found matches
+            match_count = len([line for line in decoded_output.split('\n') if line.strip()])
+            result_msg = [
+                "✅ Found Matches!",
+                f"Found {match_count} match{'es' if match_count != 1 else ''} in {total_files} searched files:",
+                "",
+                decoded_output
+            ]
+            decoded_output = "\n".join(result_msg)
+        else:
+            # No matches found
+            result_msg = [
+                "❌ No Matches Found",
+                f"Searched {total_files} files for pattern: '{pattern}'",
+                "",
+                "File types included:" if file_type else "All file types searched",
+            ]
+            if file_type:
+                result_msg.append(f"- {file_type}")
+            if total_files > 0:
+                result_msg.append("\nSample of files searched:")
+                for file in searchable_files[:5]:  # Show first 5 files
+                    if file:
+                        result_msg.append(f"- {file}")
+                if len(searchable_files) > 5:
+                    result_msg.append(f"... and {len(searchable_files) - 5} more files")
+            else:
+                result_msg.append("\nNo matching files found to search!")
+                
+            decoded_output = "\n".join(result_msg)
         
         return {
             "output": truncate_output(decoded_output),
@@ -111,6 +167,5 @@ def ripgrep_search(
         console.print(Panel(error_msg, title="❌ Error", border_style="red"))
         return {
             "output": error_msg,
-            "return_code": 1,
-            "success": False
+            "return_code": 1
         }

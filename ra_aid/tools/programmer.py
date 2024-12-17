@@ -46,6 +46,8 @@ def run_programming_task(input: RunProgrammingTaskInput) -> Dict[str, Union[str,
         "--no-auto-commits",
         "--dark-mode",
         "--no-suggest-shell-commands",
+        "--model",
+        "o1-mini",
         "-m"
     ]
     

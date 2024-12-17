@@ -9,6 +9,21 @@ These updated prompts include instructions to scale complexity:
 - For more complex requests, still provide detailed planning and thorough steps.
 """
  
+
+TDD="""Test-Driven Development (TDD):
+    Test-Driven Development is a software development process that relies on the repetition of a very short development cycle:
+    1. Red: Write a failing test that defines a desired improvement or new function.
+    2. Green: Write the minimum amount of code necessary to pass the test.
+    3. Refactor: Improve the existing code while ensuring that tests still pass.
+
+    Principles of the London Method:
+        - **London School (Mockist TDD)**: Focuses on the behavior of objects and their interactions. Uses mocks extensively to simulate object interactions.
+          - Behavior Verification: Tests verify that objects interact in the expected ways.
+          - Isolation: Each unit test isolates the unit under test from its collaborators using mocks or stubs.
+          - Design Focus: Encourages good object-oriented design by focusing on object roles and responsibilities.
+          - Mock Objects: Uses mock objects to simulate the behavior of complex, real (non-mock) objects. 
+"""
+
 # Research stage prompt - guides initial codebase analysis
 RESEARCH_PROMPT = """
 Objective
@@ -95,9 +110,10 @@ Thoroughness and Completeness
 
 Decision on Implementation
 
-    After completing your factual enumeration and description, decide:
-        If you see reasons that implementation changes will be required in the future, after documenting all findings, call request_implementation and specify why.
-        If no changes are needed, simply state that no changes are required.
+    After completing your factual enumeration and description, you MUST decide if implementation should proceed. Choose one of the following options:
+        - Implementation changes required: *use request_implementation tool*.
+        OR
+        - No changes are needed, simply state that no changes are required.
 
 Be thorough on locating all potential change sites/gauging blast radius.
 
@@ -135,9 +151,12 @@ Snippet Management:
     Delete snippets with delete_key_snippets([id1, id2, ...]) to remove outdated or irrelevant ones.
     Use emit_key_snippets to store important code sections needed for reference in batches.
 
+"""+TDD+"""
+
 Guidelines:
 
     If you need additional input or assistance from the expert, first use emit_expert_context to provide all relevant context. Wait for the expert’s response before defining tasks in non-trivial scenarios.
+    Providing the search_online results through emit_expert_context will yield better expert answers when cutting edge technologies are being leveraged.
 
     Scale the complexity of your plan:
         Individual tasks can include multiple steps, file edits, etc.
@@ -152,7 +171,7 @@ Guidelines:
             Any external interfaces it will integrate with
             Data models and structures it will use
             API contracts, endpoints, or protocols it requires or provides
-            Testing strategies appropriate to the complexity of that sub-task
+            TDD (London Method) appropriate to the complexity of that sub-task
             You may include pseudocode, but not full code.
 
     After finalizing the overall approach:
@@ -181,6 +200,8 @@ Key Snippets:
 Relevant Files:
 {related_files}
 
+"""+TDD+"""
+
 Important Notes:
 - Focus solely on the given task and implement it as described.
 - Scale the complexity of your solution to the complexity of the request. For simple requests, keep it straightforward and minimal. For complex requests, maintain the previously planned depth.
@@ -189,10 +210,14 @@ Important Notes:
 - Regularly remove outdated snippets with delete_key_snippets.
 Instructions:
 1. Review the provided base task, plan, and key facts.
-2. Implement only the specified task:
+2. Apply TDD (London Method) to implement only the specified task:
    {task}
 
-3. Work incrementally, validating as you go.
+3. Work incrementally, validating as you go:
+   - After making changes, use run_test_command to verify nothing is broken
+   - Use run_lint_command to verify code quality
+   - Fix any linting and test issues before proceeding with more changes
+
 4. Use delete_key_facts to remove any key facts that no longer apply.
 5. Do not add features not explicitly required.
 6. Only create or modify files directly related to this task.
